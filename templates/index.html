@@ -1,1 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Backseat DJ</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 Backseat DJ</h1>
+    <form action="/request" method="post">
+      <label for="title">Song Title:</label>
+      <input type="text" id="title" name="title" required>
+
+      <label for="artist">Artist:</label>
+      <input type="text" id="artist" name="artist" required>
+
+      <button type="submit">Submit Request</button>
+    </form>
+
+    <a href="/queue">View Queue</a>
+  </div>
+</body>
+</html>
 
