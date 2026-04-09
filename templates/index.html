@@ -2,24 +2,65 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Backseat DJ</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="container">
     <h1>🎵 Backseat DJ</h1>
-    <form action="/request" method="post">
-      <label for="title">Song Title:</label>
-      <input type="text" id="title" name="title" required>
+    <p class="subtitle">Queue songs from the passenger seat, then let the driver play the next request when ready.</p>
 
-      <label for="artist">Artist:</label>
-      <input type="text" id="artist" name="artist" required>
+    {% if message %}
+      <div class="message">{{ message }}</div>
+    {% endif %}
 
-      <button type="submit">Submit Request</button>
-    </form>
+    {% if not spotify_ready %}
+      <div class="warning">Spotify credentials are missing. Requests will still queue, but playback is disabled until configured.</div>
+    {% endif %}
 
-    <a href="/queue">View Queue</a>
+    <section class="panel">
+      <h2>Add a song</h2>
+      <form action="/request" method="post">
+        <label for="song">Song Title</label>
+        <input type="text" id="song" name="song" placeholder="Dreams" required>
+
+        <label for="artist">Artist</label>
+        <input type="text" id="artist" name="artist" placeholder="Fleetwood Mac">
+
+        <button type="submit">Submit Request</button>
+      </form>
+    </section>
+
+    <section class="panel queue-section">
+      <div class="queue-header">
+        <h2>Current Queue</h2>
+        <span class="queue-count">{{ queue|length }} song{% if queue|length != 1 %}s{% endif %}</span>
+      </div>
+
+      {% if queue %}
+        <ol class="queue-list">
+          {% for song, artist in queue %}
+            <li>
+              <span class="song">{{ song }}</span>
+              {% if artist %}
+                <span class="artist">by {{ artist }}</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="empty-state">No requests yet. Be the first to add one.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel driver-panel">
+      <h2>Driver controls</h2>
+      <p class="driver-copy">When it is safe, play the next request from here.</p>
+      <form action="/play-next" method="post">
+        <button type="submit" class="secondary-button">Play Next Request</button>
+      </form>
+    </section>
   </div>
 </body>
 </html>
-

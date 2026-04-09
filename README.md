@@ -1,87 +1,64 @@
 # Backseat DJ (SpotAPI Edition)
 
-Let your passengers request music from the back seat using a simple QR code and web form. This MVP version uses **SpotAPI** to control Spotify playback without needing official API keys — perfect for personal testing.
+Backseat DJ is a tiny FastAPI app for car rides: passengers submit song requests from a simple web page, and the driver can play the next request from the queue when it is safe.
 
----
+This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrapper.
 
-## 🚗 What It Does
+## Current architecture
 
-- Lets users submit song requests via a web form
-- Maintains a simple in-memory request queue
-- Uses [SpotAPI](https://github.com//guilhem/spotapi) to log into Spotify with your credentials
-- Searches and plays songs automatically from the driver’s active Spotify session
+- `app/main.py`: FastAPI routes and page rendering
+- `app/queue.py`: small file-backed queue persisted to `data/queue.json`
+- `app/spotapi_wrapper.py`: Spotify search-and-play adapter
+- `templates/index.html`: single-page passenger and driver UI
+- `static/style.css`: app styling
 
----
+## What works now
 
-## 🛠 Tech Stack
+- Add song requests from the web form
+- View the current queue on the same page
+- Persist the queue across restarts
+- Gracefully run even when Spotify credentials are missing
+- Trigger "play next" from the browser
+- Re-queue the song if playback fails
 
-- [FastAPI](https://fastapi.tiangolo.com/)
-- HTML + CSS frontend (no JS required)
-- [SpotAPI](https://github.com//guilhem/spotapi) (unofficial Spotify wrapper)
-- Python 3.11+
+## MVP gaps still worth tackling next
 
----
+- Split passenger UI from driver/admin controls
+- Add duplicate / spam protection
+- Add lightweight auth for driver actions
+- Add device selection and better playback status
+- Replace SpotAPI with official Spotify OAuth when ready
 
-## 🧪 Getting Started
+## Setup
 
-### 1. Clone the Repo
-
-```bash
-git clone https://github.com/RedParrotBerkeley/backseat-dj.git
-cd backseat-dj
-```
-
-### 2. Install Requirements
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set Your Spotify Credentials
+### 2. Configure Spotify credentials
 
-Create a `.env` file in the root directory with the following:
+Create a `.env` file in the project root:
 
 ```env
 SPOTIFY_USERNAME=your_email
 SPOTIFY_PASSWORD=your_password
 ```
 
-**Important:** Never commit your `.env` file to source control. Make sure it's in your `.gitignore`.
+The app also accepts `SPOTIFY_USER` and `SPOTIFY_PASS`.
 
-### 4. Run the App
+### 3. Run the app
+
+From the repo root:
 
 ```bash
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
-Visit:
+Then open <http://localhost:8000>.
 
-```
-http://localhost:8000
-```
+## Notes
 
----
-
-## ⚠️ Warning
-
-This version uses unofficial access to Spotify’s private endpoints via SpotAPI.
-
-> **Do not use this in production or with other people’s accounts.**  
-> It may violate [Spotify’s Terms of Service](https://www.spotify.com/legal/end-user-agreement/).
-
----
-
-## ✅ Roadmap
-
-- [ ] Replace SpotAPI with official Spotify API (OAuth 2.0)
-- [ ] Add admin dashboard
-- [ ] Add device selector and playback target
-- [ ] Deploy on Replit / Vercel with public QR interface
-- [ ] Build Amazon Music version once API access is granted
-
----
-
-## 📬 Contact
-Mike Patraw  
-📧 mpatraw@berkeley.edu
-```
+- SpotAPI is unofficial and may break without warning.
+- This should be treated as a personal-use prototype, not a production app.
