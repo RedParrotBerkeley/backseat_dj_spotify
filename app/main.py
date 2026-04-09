@@ -19,7 +19,11 @@ def build_spotify_handler() -> Optional[SpotAPIHandler]:
     password = os.getenv("SPOTIFY_PASS") or os.getenv("SPOTIFY_PASSWORD")
     if not username or not password:
         return None
-    return SpotAPIHandler(username=username, password=password)
+
+    try:
+        return SpotAPIHandler(username=username, password=password)
+    except Exception:
+        return None
 
 
 spotify = build_spotify_handler()
