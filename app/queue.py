@@ -43,15 +43,21 @@ class SongRequestQueue:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self.storage_path.write_text(json.dumps(payload, indent=2))
 
-    def add(self, song: str, artist: str = "") -> bool:
+    def add(self, song: str, artist: str = "") -> Tuple[bool, Optional[str]]:
         cleaned_song = song.strip()
         cleaned_artist = artist.strip()
         if not cleaned_song:
-            return False
+            return False, "Please enter a song title before submitting."
+
+        normalized_new = (cleaned_song.casefold(), cleaned_artist.casefold())
+        for queued_song, queued_artist in self._items:
+            normalized_existing = (queued_song.casefold(), queued_artist.casefold())
+            if normalized_existing == normalized_new:
+                return False, f'"{cleaned_song}" is already in the queue.'
 
         self._items.append((cleaned_song, cleaned_artist))
         self._save()
-        return True
+        return True, None
 
     def next(self) -> Optional[SongQueueItem]:
         if not self._items:
@@ -59,6 +65,22 @@ class SongRequestQueue:
         item = self._items.popleft()
         self._save()
         return item
+
+    def remove(self, index: int) -> Optional[SongQueueItem]:
+        if index < 0 or index >= len(self._items):
+            return None
+
+        items = list(self._items)
+        removed = items.pop(index)
+        self._items = deque(items)
+        self._save()
+        return removed
+
+    def clear(self) -> int:
+        count = len(self._items)
+        self._items.clear()
+        self._save()
+        return count
 
     def list(self) -> List[SongQueueItem]:
         return list(self._items)

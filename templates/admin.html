@@ -36,13 +36,21 @@
         </div>
 
         {% if queue %}
-          <ol class="queue-list">
-            {% for song, artist in queue %}
-              <li>
-                <span class="song">{{ song }}</span>
-                {% if artist %}
-                  <span class="artist">by {{ artist }}</span>
-                {% endif %}
+          <ol class="queue-list admin-queue-list">
+            {% for index, item in queue %}
+              {% set song = item[0] %}
+              {% set artist = item[1] %}
+              <li class="admin-queue-item">
+                <div class="queue-item-copy">
+                  <span class="song">{{ song }}</span>
+                  {% if artist %}
+                    <span class="artist">by {{ artist }}</span>
+                  {% endif %}
+                </div>
+                <form action="{{ remove_base }}{% if pin %}?pin={{ pin }}{% endif %}" method="post" class="inline-form">
+                  <input type="hidden" name="index" value="{{ index }}">
+                  <button type="submit" class="secondary-button small-button">Remove</button>
+                </form>
               </li>
             {% endfor %}
           </ol>
@@ -54,9 +62,14 @@
       <section class="panel driver-panel">
         <h2>Driver actions</h2>
         <p class="driver-copy">Only use this when it is safe to do so.</p>
-        <form action="{{ admin_action }}" method="post">
-          <button type="submit">Play Next Request</button>
-        </form>
+        <div class="action-grid">
+          <form action="{{ admin_action }}" method="post">
+            <button type="submit">Play Next Request</button>
+          </form>
+          <form action="{{ clear_action }}" method="post">
+            <button type="submit" class="secondary-button">Clear Queue</button>
+          </form>
+        </div>
       </section>
     {% endif %}
 

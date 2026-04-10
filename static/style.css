@@ -97,6 +97,12 @@ button:hover {
   border: 1px solid #444;
 }
 
+.small-button {
+  font-size: 0.9rem;
+  margin-top: 0;
+  padding: 0.6rem 0.9rem;
+}
+
 .queue-header {
   align-items: center;
   display: flex;
@@ -116,6 +122,31 @@ button:hover {
 
 .queue-list li + li {
   margin-top: 0.75rem;
+}
+
+.admin-queue-list {
+  list-style: decimal;
+}
+
+.admin-queue-item {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.queue-item-copy {
+  min-width: 0;
+}
+
+.inline-form {
+  display: block;
+  flex-shrink: 0;
+}
+
+.action-grid {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .song {
@@ -146,6 +177,11 @@ button:hover {
   }
 
   .queue-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-queue-item {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -61,13 +61,15 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
         "admin.html",
         {
             "request": request,
-            "queue": request_queue.list(),
+            "queue": list(enumerate(request_queue.list())),
             "spotify_ready": spotify is not None,
             "message": message,
             "admin_configured": bool(ADMIN_PIN),
             "authorized": authorized,
             "pin": pin or "",
             "admin_action": f"/play-next{admin_query(pin)}",
+            "clear_action": f"/admin/clear{admin_query(pin)}",
+            "remove_base": "/admin/remove",
         },
         status_code=200 if authorized else 403,
     )
@@ -90,9 +92,9 @@ async def admin(request: Request, pin: Optional[str] = Query(default=None)):
 
 @app.post("/request", response_class=HTMLResponse)
 async def add_song(request: Request, song: str = Form(...), artist: str = Form("")):
-    added = request_queue.add(song, artist)
+    added, error_message = request_queue.add(song, artist)
     if not added:
-        return render_home(request, "Please enter a song title before submitting.")
+        return render_home(request, error_message)
 
     return render_home(request, f'Added "{song.strip()}" to the queue.')
 
@@ -128,6 +130,48 @@ async def play_next(pin: Optional[str] = Query(default=None)):
     if message:
         joiner = "&" if "?" in destination else "?"
         destination = f"{destination}{joiner}{urlencode({'message': message})}"
+    return RedirectResponse(url=destination, status_code=303)
+
+
+@app.post("/admin/remove")
+async def remove_song(index: int = Form(...), pin: Optional[str] = Query(default=None)):
+    if not is_admin(pin):
+        destination = "/admin"
+        if pin:
+            destination = f"{destination}{admin_query(pin)}"
+        return RedirectResponse(url=destination, status_code=303)
+
+    removed = request_queue.remove(index)
+    if removed is None:
+        message = "Could not remove that queue item."
+    else:
+        song, artist = removed
+        full_query = f"{song} {artist}" if artist else song
+        message = f'Removed "{full_query}" from the queue.'
+
+    destination = f"/admin/refresh{admin_query(pin)}"
+    joiner = "&" if "?" in destination else "?"
+    destination = f"{destination}{joiner}{urlencode({'message': message})}"
+    return RedirectResponse(url=destination, status_code=303)
+
+
+@app.post("/admin/clear")
+async def clear_queue(pin: Optional[str] = Query(default=None)):
+    if not is_admin(pin):
+        destination = "/admin"
+        if pin:
+            destination = f"{destination}{admin_query(pin)}"
+        return RedirectResponse(url=destination, status_code=303)
+
+    removed_count = request_queue.clear()
+    if removed_count:
+        message = f"Cleared {removed_count} queued request(s)."
+    else:
+        message = "Queue was already empty."
+
+    destination = f"/admin/refresh{admin_query(pin)}"
+    joiner = "&" if "?" in destination else "?"
+    destination = f"{destination}{joiner}{urlencode({'message': message})}"
     return RedirectResponse(url=destination, status_code=303)
 
 
