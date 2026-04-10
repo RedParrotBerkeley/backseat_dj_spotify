@@ -9,31 +9,20 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.playback import PlaybackDevice, PlaybackProvider
 from app.queue import request_queue
-from app.spotapi_wrapper import SpotAPIHandler
+from app.spotapi_provider import SpotAPIPlaybackProvider
 
 app = FastAPI(title="Backseat DJ")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-def build_spotify_handler() -> Optional[SpotAPIHandler]:
-    username = os.getenv("SPOTIFY_USER") or os.getenv("SPOTIFY_USERNAME")
-    password = os.getenv("SPOTIFY_PASS") or os.getenv("SPOTIFY_PASSWORD")
-    if not username or not password:
-        return None
-
-    try:
-        return SpotAPIHandler(username=username, password=password)
-    except Exception:
-        return None
-
-
 APP_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SETTINGS_PATH = APP_DATA_DIR / "settings.json"
 
 
-spotify = build_spotify_handler()
+playback_provider: Optional[PlaybackProvider] = SpotAPIPlaybackProvider.from_env()
 ADMIN_PIN = os.getenv("BACKSEAT_DJ_ADMIN_PIN")
 last_playback_status = "Spotify playback has not been used yet."
 last_selected_query = ""
@@ -81,28 +70,24 @@ def render_home(request: Request, message: Optional[str] = None) -> HTMLResponse
         {
             "request": request,
             "queue": request_queue.list(),
-            "spotify_ready": spotify is not None,
+            "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
             "message": message,
         },
     )
 
 
 def current_devices():
-    if spotify is None:
+    if playback_provider is None:
         return []
-    return spotify.devices()
+    return playback_provider.devices()
 
 
-def normalize_device(device: dict) -> dict:
-    device_id = str(device.get("id", "") or "")
-    name = str(device.get("name", "Unknown device") or "Unknown device")
-    is_active = bool(device.get("is_active") or device.get("active"))
-    device_type = str(device.get("type", "") or "")
+def normalize_device(device: PlaybackDevice) -> dict:
     return {
-        "id": device_id,
-        "name": name,
-        "is_active": is_active,
-        "type": device_type,
+        "id": device.id,
+        "name": device.name,
+        "is_active": device.is_active,
+        "type": device.type,
     }
 
 
@@ -137,7 +122,7 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
         {
             "request": request,
             "queue": list(enumerate(request_queue.list())),
-            "spotify_ready": spotify is not None,
+            "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
             "message": message,
             "admin_configured": bool(ADMIN_PIN),
             "authorized": authorized,
@@ -153,6 +138,7 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "active_device_name": current_active_device,
             "last_playback_status": last_playback_status,
             "last_selected_query": last_selected_query,
+            "playback_provider_name": playback_provider.provider_name() if playback_provider else None,
         },
         status_code=200 if authorized else 403,
     )
@@ -201,23 +187,24 @@ async def play_next(pin: Optional[str] = Query(default=None)):
         song, artist = next_song
         full_query = f"{song} {artist}" if artist else song
 
-        if spotify is None:
+        if playback_provider is None:
             request_queue.add(song, artist)
             message = "Spotify credentials are not configured yet."
             last_playback_status = message
             last_selected_query = full_query
         else:
             last_selected_query = full_query
-            played, playback_error = spotify.search_and_play(full_query, device_id=selected_device_id or None)
-            if not played:
+            playback_result = playback_provider.search_and_play(full_query, device_id=selected_device_id or None)
+            if not playback_result.ok:
                 request_queue.add(song, artist)
-                if playback_error:
-                    message = f'Could not play "{full_query}". {playback_error}. The request was returned to the queue.'
+                if playback_result.error:
+                    message = f'Could not play "{full_query}". {playback_result.error}. The request was returned to the queue.'
                 else:
                     message = f'Could not play "{full_query}". The request was returned to the queue.'
                 last_playback_status = message
             else:
-                device_label = selected_device_name(normalized_devices()) or active_device_name(normalized_devices()) or "default Spotify device"
+                provider_label = playback_provider.provider_name() if playback_provider else "spotify"
+                device_label = selected_device_name(normalized_devices()) or active_device_name(normalized_devices()) or f"default {provider_label} device"
                 message = f'Now playing "{full_query}" on {device_label}.'
                 last_playback_status = message
 
@@ -339,7 +326,8 @@ async def health() -> dict:
     return {
         "ok": True,
         "queue_length": len(request_queue),
-        "spotify_ready": spotify is not None,
+        "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
+        "playback_provider": playback_provider.provider_name() if playback_provider else None,
         "admin_pin_configured": bool(ADMIN_PIN),
         "selected_device_id": selected_device_id or None,
         "last_playback_status": last_playback_status,

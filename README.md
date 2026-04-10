@@ -8,7 +8,8 @@ This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrap
 
 - `app/main.py`: FastAPI routes, passenger page, and admin page
 - `app/queue.py`: file-backed queue persisted to `data/queue.json`
-- `app/spotapi_wrapper.py`: Spotify search-and-play adapter
+- `app/playback.py`: provider interface for playback migration
+- `app/spotapi_provider.py`: current SpotAPI-backed playback provider
 - `templates/index.html`: passenger request page
 - `templates/admin.html`: driver/admin controls
 - `static/style.css`: shared styling
@@ -28,8 +29,8 @@ This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrap
 
 ## MVP gaps still worth tackling next
 
-- Replace SpotAPI with official Spotify OAuth when ready
-- Add better live playback confirmation from Spotify, not just best-effort status messages
+- Add an official Spotify OAuth playback provider beside the SpotAPI provider
+- Switch provider selection by config once the OAuth path is ready
 - Add stronger rate limiting if passengers start spamming the queue
 - Add lightweight auth or session controls if this ever leaves personal-use mode
 
@@ -92,10 +93,12 @@ You should see JSON showing the queue length plus playback/admin status.
 - In `/admin`, choose a playback device once if Spotify devices are visible
 - That selected device will now persist across restarts in `data/settings.json`
 
-## Notes
+## Beta and migration notes
 
-- SpotAPI is unofficial and may break without warning.
-- Device visibility depends on what SpotAPI can see from the authenticated Spotify account.
+- `docs/beta-plan.md` outlines the recommended beta path: hosted web beta first, then SwiftUI/TestFlight wrapper, then deeper native work.
+- Playback now sits behind a provider abstraction so we can add an official Spotify OAuth provider without rewriting the whole app again.
+- SpotAPI is still the active provider today, and it remains unofficial.
+- Device visibility depends on what the active playback provider can see from the authenticated Spotify account.
 - The app stores queue state in `data/queue.json` and saved playback settings in `data/settings.json`.
 - The current admin PIN flow is a lightweight MVP safeguard, not strong production auth.
 - This should be treated as a personal-use prototype, not a production app.
