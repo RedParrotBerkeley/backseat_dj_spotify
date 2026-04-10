@@ -66,10 +66,45 @@
           <form action="{{ admin_action }}" method="post">
             <button type="submit">Play Next Request</button>
           </form>
+          <form action="{{ skip_action }}" method="post">
+            <button type="submit" class="secondary-button">Skip Next</button>
+          </form>
           <form action="{{ clear_action }}" method="post">
             <button type="submit" class="secondary-button">Clear Queue</button>
           </form>
         </div>
+      </section>
+
+      <section class="panel">
+        <h2>Playback status</h2>
+        <p class="status-copy">{{ last_playback_status }}</p>
+        {% if selected_device_name %}
+          <p class="status-meta">Selected device: {{ selected_device_name }}</p>
+        {% else %}
+          <p class="status-meta">Selected device: Spotify default</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Playback device</h2>
+        {% if spotify_ready and devices %}
+          <form action="{{ device_action }}" method="post">
+            <label for="device_id">Send playback to</label>
+            <select id="device_id" name="device_id">
+              <option value="">Spotify default</option>
+              {% for device in devices %}
+                {% set device_id = device.get('id', '') %}
+                {% set device_name = device.get('name', 'Unknown device') %}
+                <option value="{{ device_id }}" {% if device_id == selected_device_id %}selected{% endif %}>{{ device_name }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="secondary-button">Save Device</button>
+          </form>
+        {% elif spotify_ready %}
+          <p class="empty-state">No Spotify devices are visible right now.</p>
+        {% else %}
+          <p class="empty-state">Configure Spotify credentials to manage playback devices.</p>
+        {% endif %}
       </section>
     {% endif %}
 

@@ -16,6 +16,12 @@ class SongRequestQueue:
         self.storage_path = storage_path
         self._load()
 
+    @staticmethod
+    def _normalize(song: str, artist: str = "") -> Tuple[str, str]:
+        normalized_song = " ".join(song.casefold().split())
+        normalized_artist = " ".join(artist.casefold().split())
+        return normalized_song, normalized_artist
+
     def _load(self) -> None:
         if not self.storage_path.exists():
             return
@@ -49,11 +55,23 @@ class SongRequestQueue:
         if not cleaned_song:
             return False, "Please enter a song title before submitting."
 
-        normalized_new = (cleaned_song.casefold(), cleaned_artist.casefold())
+        normalized_new = self._normalize(cleaned_song, cleaned_artist)
+        duplicate_count = 0
+        same_title_count = 0
         for queued_song, queued_artist in self._items:
-            normalized_existing = (queued_song.casefold(), queued_artist.casefold())
+            normalized_existing = self._normalize(queued_song, queued_artist)
             if normalized_existing == normalized_new:
                 return False, f'"{cleaned_song}" is already in the queue.'
+            if normalized_existing[0] == normalized_new[0]:
+                same_title_count += 1
+            if cleaned_artist and normalized_existing[1] == normalized_new[1]:
+                duplicate_count += 1
+
+        if same_title_count >= 2:
+            return False, f'Too many versions of "{cleaned_song}" are already queued.'
+
+        if cleaned_artist and duplicate_count >= 3:
+            return False, f'There are already several requests from {cleaned_artist} in the queue.'
 
         self._items.append((cleaned_song, cleaned_artist))
         self._save()
