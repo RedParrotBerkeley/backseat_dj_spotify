@@ -13,13 +13,15 @@ from app.playback import PlaybackDevice, PlaybackProvider
 from app.queue import request_queue
 from app.spotapi_provider import SpotAPIPlaybackProvider
 
-app = FastAPI(title="Backseat DJ")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
-
-APP_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+BASE_DIR = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+APP_DATA_DIR = BASE_DIR / "data"
 SETTINGS_PATH = APP_DATA_DIR / "settings.json"
+
+app = FastAPI(title="Backseat DJ")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 playback_provider: Optional[PlaybackProvider] = SpotAPIPlaybackProvider.from_env()
