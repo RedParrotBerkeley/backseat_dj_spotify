@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: backseat-dj-beta
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: BACKSEAT_DJ_ADMIN_PIN
+        sync: false
+      - key: SPOTIFY_USERNAME
+        sync: false
+      - key: SPOTIFY_PASSWORD
+        sync: false
+      - key: SPOTIFY_USER
+        sync: false
+      - key: SPOTIFY_PASS
+        sync: false

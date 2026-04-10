@@ -96,6 +96,9 @@ You should see JSON showing the queue length plus playback/admin status.
 ## Beta and migration notes
 
 - `docs/beta-plan.md` outlines the recommended beta path: hosted web beta first, then SwiftUI/TestFlight wrapper, then deeper native work.
+- `docs/deploy-render.md` documents the fastest hosted-beta path.
+- `render.yaml` and `Dockerfile` were added so the app is easier to deploy to a public beta URL.
+- `apple/BackseatDJBeta/README.md` is the starting point for the Apple app beta shell.
 - Playback now sits behind a provider abstraction so we can add an official Spotify OAuth provider without rewriting the whole app again.
 - SpotAPI is still the active provider today, and it remains unofficial.
 - Device visibility depends on what the active playback provider can see from the authenticated Spotify account.
