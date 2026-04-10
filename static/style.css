@@ -97,19 +97,6 @@ button:hover {
   border: 1px solid #444;
 }
 
-.footer-link {
-  margin-top: 1rem;
-}
-
-.footer-link a {
-  color: #1db954;
-  text-decoration: none;
-}
-
-.footer-link a:hover {
-  text-decoration: underline;
-}
-
 .queue-header {
   align-items: center;
   display: flex;
