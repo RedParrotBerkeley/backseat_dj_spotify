@@ -9,14 +9,10 @@
 <body>
   <div class="container">
     <h1>🎵 Backseat DJ</h1>
-    <p class="subtitle">Queue songs from the passenger seat, then let the driver play the next request when ready.</p>
+    <p class="subtitle">Passengers can queue songs here. Driver controls live on a separate admin page.</p>
 
     {% if message %}
       <div class="message">{{ message }}</div>
-    {% endif %}
-
-    {% if not spotify_ready %}
-      <div class="warning">Spotify credentials are missing. Requests will still queue, but playback is disabled until configured.</div>
     {% endif %}
 
     <section class="panel">
@@ -54,13 +50,7 @@
       {% endif %}
     </section>
 
-    <section class="panel driver-panel">
-      <h2>Driver controls</h2>
-      <p class="driver-copy">When it is safe, play the next request from here.</p>
-      <form action="/play-next" method="post">
-        <button type="submit" class="secondary-button">Play Next Request</button>
-      </form>
-    </section>
+    <p class="footer-note">Driver/admin page: <a href="/admin">/admin</a></p>
   </div>
 </body>
 </html>

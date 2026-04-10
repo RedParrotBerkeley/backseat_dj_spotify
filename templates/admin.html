@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backseat DJ Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🚘 Backseat DJ Admin</h1>
+    <p class="subtitle">Playback controls stay off the public passenger page.</p>
+
+    {% if message %}
+      <div class="message">{{ message }}</div>
+    {% endif %}
+
+    {% if not spotify_ready %}
+      <div class="warning">Spotify credentials are missing. Queueing still works, but playback is disabled until configured.</div>
+    {% endif %}
+
+    {% if admin_configured and not authorized %}
+      <section class="panel">
+        <h2>Unlock admin controls</h2>
+        <form action="/admin" method="get">
+          <label for="pin">Admin PIN</label>
+          <input type="password" id="pin" name="pin" placeholder="Enter PIN" required>
+          <button type="submit">Unlock</button>
+        </form>
+      </section>
+    {% else %}
+      <section class="panel queue-section">
+        <div class="queue-header">
+          <h2>Current Queue</h2>
+          <span class="queue-count">{{ queue|length }} song{% if queue|length != 1 %}s{% endif %}</span>
+        </div>
+
+        {% if queue %}
+          <ol class="queue-list">
+            {% for song, artist in queue %}
+              <li>
+                <span class="song">{{ song }}</span>
+                {% if artist %}
+                  <span class="artist">by {{ artist }}</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="empty-state">No requests queued right now.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel driver-panel">
+        <h2>Driver actions</h2>
+        <p class="driver-copy">Only use this when it is safe to do so.</p>
+        <form action="{{ admin_action }}" method="post">
+          <button type="submit">Play Next Request</button>
+        </form>
+      </section>
+    {% endif %}
+
+    <p class="footer-link"><a href="/">Back to passenger page</a></p>
+  </div>
+</body>
+</html>
