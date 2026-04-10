@@ -32,11 +32,17 @@ This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrap
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Create a virtual environment and install dependencies
+
+Python 3.11+ is recommended. The current `spotapi` dependency is not reliable on Python 3.9.
 
 ```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+If you only have Python 3.9 available, the app can still run in queue-only mode, but Spotify playback support may stay disabled until you upgrade Python.
 
 ### 2. Configure Spotify credentials
 
@@ -63,6 +69,12 @@ From the repo root:
 
 ```bash
 uvicorn app.main:app --reload
+```
+
+You can verify the app boots even without Spotify credentials by checking:
+
+```bash
+curl http://localhost:8000/health
 ```
 
 Then open <http://localhost:8000> for passengers and <http://localhost:8000/admin> for driver controls.

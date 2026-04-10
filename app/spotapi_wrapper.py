@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from spotapi import Client
-except ImportError:  # pragma: no cover, depends on local optional dependency
+except Exception:  # pragma: no cover, optional dependency may be missing or incompatible
     Client = None  # type: ignore[assignment]
 
 
