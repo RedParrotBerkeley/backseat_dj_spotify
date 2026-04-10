@@ -31,6 +31,7 @@ spotify = build_spotify_handler()
 ADMIN_PIN = os.getenv("BACKSEAT_DJ_ADMIN_PIN")
 selected_device_id = os.getenv("BACKSEAT_DJ_DEVICE_ID", "").strip()
 last_playback_status = "Spotify playback has not been used yet."
+last_selected_query = ""
 
 
 def is_admin(pin: Optional[str]) -> bool:
@@ -63,6 +64,23 @@ def current_devices():
     return spotify.devices()
 
 
+def normalize_device(device: dict) -> dict:
+    device_id = str(device.get("id", "") or "")
+    name = str(device.get("name", "Unknown device") or "Unknown device")
+    is_active = bool(device.get("is_active") or device.get("active"))
+    device_type = str(device.get("type", "") or "")
+    return {
+        "id": device_id,
+        "name": name,
+        "is_active": is_active,
+        "type": device_type,
+    }
+
+
+def normalized_devices():
+    return [normalize_device(device) for device in current_devices()]
+
+
 def selected_device_name(devices) -> Optional[str]:
     if not selected_device_id:
         return None
@@ -73,10 +91,18 @@ def selected_device_name(devices) -> Optional[str]:
     return None
 
 
+def active_device_name(devices) -> Optional[str]:
+    for device in devices:
+        if device.get("is_active"):
+            return str(device.get("name", "Active device"))
+    return None
+
+
 def render_admin(request: Request, pin: Optional[str], message: Optional[str] = None) -> HTMLResponse:
     authorized = is_admin(pin)
-    devices = current_devices()
-    active_device_name = selected_device_name(devices)
+    devices = normalized_devices()
+    configured_device_name = selected_device_name(devices)
+    current_active_device = active_device_name(devices)
     return templates.TemplateResponse(
         "admin.html",
         {
@@ -94,8 +120,10 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "device_action": f"/admin/device{admin_query(pin)}",
             "devices": devices,
             "selected_device_id": selected_device_id,
-            "selected_device_name": active_device_name,
+            "selected_device_name": configured_device_name,
+            "active_device_name": current_active_device,
             "last_playback_status": last_playback_status,
+            "last_selected_query": last_selected_query,
         },
         status_code=200 if authorized else 403,
     )
@@ -127,7 +155,7 @@ async def add_song(request: Request, song: str = Form(...), artist: str = Form("
 
 @app.post("/play-next")
 async def play_next(pin: Optional[str] = Query(default=None)):
-    global last_playback_status
+    global last_playback_status, last_selected_query
 
     if not is_admin(pin):
         destination = "/admin"
@@ -148,14 +176,19 @@ async def play_next(pin: Optional[str] = Query(default=None)):
             request_queue.add(song, artist)
             message = "Spotify credentials are not configured yet."
             last_playback_status = message
+            last_selected_query = full_query
         else:
-            played = spotify.search_and_play(full_query, device_id=selected_device_id or None)
+            last_selected_query = full_query
+            played, playback_error = spotify.search_and_play(full_query, device_id=selected_device_id or None)
             if not played:
                 request_queue.add(song, artist)
-                message = f'Could not play "{full_query}". The request was returned to the queue.'
+                if playback_error:
+                    message = f'Could not play "{full_query}". {playback_error}. The request was returned to the queue.'
+                else:
+                    message = f'Could not play "{full_query}". The request was returned to the queue.'
                 last_playback_status = message
             else:
-                device_label = selected_device_name(current_devices()) or "default Spotify device"
+                device_label = selected_device_name(normalized_devices()) or active_device_name(normalized_devices()) or "default Spotify device"
                 message = f'Now playing "{full_query}" on {device_label}.'
                 last_playback_status = message
 
@@ -221,7 +254,7 @@ async def set_device(device_id: str = Form(""), pin: Optional[str] = Query(defau
         return RedirectResponse(url=destination, status_code=303)
 
     cleaned_device_id = device_id.strip()
-    devices = current_devices()
+    devices = normalized_devices()
     valid_ids = {str(device.get('id', '') or '') for device in devices}
 
     if cleaned_device_id and cleaned_device_id not in valid_ids:
@@ -280,4 +313,6 @@ async def health() -> dict:
         "admin_pin_configured": bool(ADMIN_PIN),
         "selected_device_id": selected_device_id or None,
         "last_playback_status": last_playback_status,
+        "last_selected_query": last_selected_query or None,
+        "active_device_name": active_device_name(normalized_devices()),
     }

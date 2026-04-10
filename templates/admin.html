@@ -78,10 +78,16 @@
       <section class="panel">
         <h2>Playback status</h2>
         <p class="status-copy">{{ last_playback_status }}</p>
+        {% if last_selected_query %}
+          <p class="status-meta">Last request attempted: {{ last_selected_query }}</p>
+        {% endif %}
         {% if selected_device_name %}
           <p class="status-meta">Selected device: {{ selected_device_name }}</p>
         {% else %}
           <p class="status-meta">Selected device: Spotify default</p>
+        {% endif %}
+        {% if active_device_name %}
+          <p class="status-meta">Active Spotify device: {{ active_device_name }}</p>
         {% endif %}
       </section>
 
@@ -95,7 +101,9 @@
               {% for device in devices %}
                 {% set device_id = device.get('id', '') %}
                 {% set device_name = device.get('name', 'Unknown device') %}
-                <option value="{{ device_id }}" {% if device_id == selected_device_id %}selected{% endif %}>{{ device_name }}</option>
+                {% set device_type = device.get('type', '') %}
+                {% set active_label = ' (active)' if device.get('is_active') else '' %}
+                <option value="{{ device_id }}" {% if device_id == selected_device_id %}selected{% endif %}>{{ device_name }}{% if device_type %} · {{ device_type }}{% endif %}{{ active_label }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="secondary-button">Save Device</button>

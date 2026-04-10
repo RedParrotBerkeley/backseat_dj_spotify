@@ -22,13 +22,16 @@ This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrap
 - Use a separate `/admin` page for driver playback controls
 - Optionally protect admin playback actions with a shared PIN
 - Re-queue the song automatically if playback fails
+- Skip or remove queued requests from the admin page
+- See playback status, last attempted request, and available playback devices
+- Choose a preferred Spotify playback device when one is visible
 
 ## MVP gaps still worth tackling next
 
-- Add duplicate / spam protection
-- Add skip/remove moderation controls for the driver
-- Add device selection and better playback status
+- Persist the selected playback device across restarts
 - Replace SpotAPI with official Spotify OAuth when ready
+- Add better live playback confirmation from Spotify, not just best-effort status messages
+- Add stronger rate limiting if passengers start spamming the queue
 
 ## Setup
 
@@ -63,6 +66,12 @@ BACKSEAT_DJ_ADMIN_PIN=1234
 
 If `BACKSEAT_DJ_ADMIN_PIN` is set, `/admin` requires that PIN before playback controls are shown.
 
+Optional default playback device:
+
+```env
+BACKSEAT_DJ_DEVICE_ID=spotify_device_id_here
+```
+
 ### 3. Run the app
 
 From the repo root:
@@ -82,5 +91,6 @@ Then open <http://localhost:8000> for passengers and <http://localhost:8000/admi
 ## Notes
 
 - SpotAPI is unofficial and may break without warning.
+- Device visibility depends on what SpotAPI can see from the authenticated Spotify account.
 - The current admin PIN flow is a lightweight MVP safeguard, not strong production auth.
 - This should be treated as a personal-use prototype, not a production app.
