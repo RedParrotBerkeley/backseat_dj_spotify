@@ -28,10 +28,10 @@ This repo is still an MVP and currently uses SpotAPI, an unofficial Spotify wrap
 
 ## MVP gaps still worth tackling next
 
-- Persist the selected playback device across restarts
 - Replace SpotAPI with official Spotify OAuth when ready
 - Add better live playback confirmation from Spotify, not just best-effort status messages
 - Add stronger rate limiting if passengers start spamming the queue
+- Add lightweight auth or session controls if this ever leaves personal-use mode
 
 ## Setup
 
@@ -47,50 +47,55 @@ pip install -r requirements.txt
 
 If you only have Python 3.9 available, the app can still run in queue-only mode, but Spotify playback support may stay disabled until you upgrade Python.
 
-### 2. Configure Spotify credentials
+### 2. Configure environment
 
 Create a `.env` file in the project root:
 
 ```env
 SPOTIFY_USERNAME=your_email
 SPOTIFY_PASSWORD=your_password
+BACKSEAT_DJ_ADMIN_PIN=1234
+# Optional one-time default before the app saves your selection:
+BACKSEAT_DJ_DEVICE_ID=spotify_device_id_here
 ```
 
 The app also accepts `SPOTIFY_USER` and `SPOTIFY_PASS`.
 
-Optional admin protection:
+Notes:
+- `BACKSEAT_DJ_ADMIN_PIN` is optional, but recommended if anyone besides you can reach `/admin`.
+- After you choose a playback device in the admin UI, the app persists it in `data/settings.json` across restarts.
+- The environment variable `BACKSEAT_DJ_DEVICE_ID` is now just a startup fallback.
 
-```env
-BACKSEAT_DJ_ADMIN_PIN=1234
-```
-
-If `BACKSEAT_DJ_ADMIN_PIN` is set, `/admin` requires that PIN before playback controls are shown.
-
-Optional default playback device:
-
-```env
-BACKSEAT_DJ_DEVICE_ID=spotify_device_id_here
-```
-
-### 3. Run the app
+### 3. Launch the app
 
 From the repo root:
 
 ```bash
+source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-You can verify the app boots even without Spotify credentials by checking:
+### 4. Verify it started cleanly
+
+In another terminal:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-Then open <http://localhost:8000> for passengers and <http://localhost:8000/admin> for driver controls.
+You should see JSON showing the queue length plus playback/admin status.
+
+### 5. Use it
+
+- Open <http://localhost:8000> for the passenger request page
+- Open <http://localhost:8000/admin> for driver controls
+- In `/admin`, choose a playback device once if Spotify devices are visible
+- That selected device will now persist across restarts in `data/settings.json`
 
 ## Notes
 
 - SpotAPI is unofficial and may break without warning.
 - Device visibility depends on what SpotAPI can see from the authenticated Spotify account.
+- The app stores queue state in `data/queue.json` and saved playback settings in `data/settings.json`.
 - The current admin PIN flow is a lightweight MVP safeguard, not strong production auth.
 - This should be treated as a personal-use prototype, not a production app.

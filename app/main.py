@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -27,11 +29,38 @@ def build_spotify_handler() -> Optional[SpotAPIHandler]:
         return None
 
 
+APP_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+SETTINGS_PATH = APP_DATA_DIR / "settings.json"
+
+
 spotify = build_spotify_handler()
 ADMIN_PIN = os.getenv("BACKSEAT_DJ_ADMIN_PIN")
-selected_device_id = os.getenv("BACKSEAT_DJ_DEVICE_ID", "").strip()
 last_playback_status = "Spotify playback has not been used yet."
 last_selected_query = ""
+
+
+def load_settings() -> dict:
+    if not SETTINGS_PATH.exists():
+        return {}
+
+    try:
+        raw = json.loads(SETTINGS_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    return raw if isinstance(raw, dict) else {}
+
+
+def save_settings(settings: dict) -> None:
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+
+
+_runtime_settings = load_settings()
+selected_device_id = str(
+    _runtime_settings.get("selected_device_id")
+    or os.getenv("BACKSEAT_DJ_DEVICE_ID", "")
+).strip()
 
 
 def is_admin(pin: Optional[str]) -> bool:
@@ -261,6 +290,7 @@ async def set_device(device_id: str = Form(""), pin: Optional[str] = Query(defau
         message = "That Spotify device is no longer available."
     else:
         selected_device_id = cleaned_device_id
+        save_settings({"selected_device_id": selected_device_id})
         if selected_device_id:
             device_name = selected_device_name(devices) or "selected device"
             message = f"Playback device set to {device_name}."
