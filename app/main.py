@@ -66,12 +66,28 @@ def admin_query(pin: Optional[str]) -> str:
     return f"?{urlencode({'pin': pin})}"
 
 
+def public_queue_items() -> list[dict]:
+    return [
+        {"song": song, "artist": artist}
+        for song, artist in request_queue.list()
+    ]
+
+
+def admin_queue_items() -> list[dict]:
+    return [
+        {"index": index, "song": song, "artist": artist}
+        for index, (song, artist) in enumerate(request_queue.list())
+    ]
+
+
 def render_home(request: Request, message: Optional[str] = None) -> HTMLResponse:
+    queue = public_queue_items()
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "queue": request_queue.list(),
+            "queue": queue,
+            "queue_count": len(queue),
             "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
             "message": message,
         },
@@ -86,6 +102,18 @@ def current_devices():
 
 def normalized_devices():
     return current_devices()
+
+
+def template_devices() -> list[dict]:
+    devices = []
+    for device in normalized_devices():
+        label = device.name or "Unknown device"
+        if device.type:
+            label = f"{label} · {device.type}"
+        if device.is_active:
+            label = f"{label} (active)"
+        devices.append({"id": device.id, "label": label})
+    return devices
 
 
 def selected_device_name(devices) -> Optional[str]:
@@ -106,14 +134,16 @@ def active_device_name(devices) -> Optional[str]:
 
 def render_admin(request: Request, pin: Optional[str], message: Optional[str] = None) -> HTMLResponse:
     authorized = is_admin(pin)
-    devices = normalized_devices()
-    configured_device_name = selected_device_name(devices)
-    current_active_device = active_device_name(devices)
+    raw_devices = normalized_devices()
+    queue = admin_queue_items()
+    configured_device_name = selected_device_name(raw_devices)
+    current_active_device = active_device_name(raw_devices)
     return templates.TemplateResponse(
         "admin.html",
         {
             "request": request,
-            "queue": list(enumerate(request_queue.list())),
+            "queue": queue,
+            "queue_count": len(queue),
             "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
             "message": message,
             "admin_configured": bool(ADMIN_PIN),
@@ -124,7 +154,8 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "remove_base": "/admin/remove",
             "skip_action": f"/admin/skip-next{admin_query(pin)}",
             "device_action": f"/admin/device{admin_query(pin)}",
-            "devices": devices,
+            "devices": template_devices(),
+            "device_count": len(raw_devices),
             "selected_device_id": selected_device_id,
             "selected_device_name": configured_device_name,
             "active_device_name": current_active_device,

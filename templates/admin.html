@@ -32,23 +32,21 @@
       <section class="panel queue-section">
         <div class="queue-header">
           <h2>Current Queue</h2>
-          <span class="queue-count">{{ queue|length }} song{% if queue|length != 1 %}s{% endif %}</span>
+          <span class="queue-count">{{ queue_count }} song{% if queue_count != 1 %}s{% endif %}</span>
         </div>
 
-        {% if queue %}
+        {% if queue_count > 0 %}
           <ol class="queue-list admin-queue-list">
-            {% for index, item in queue %}
-              {% set song = item[0] %}
-              {% set artist = item[1] %}
+            {% for item in queue %}
               <li class="admin-queue-item">
                 <div class="queue-item-copy">
-                  <span class="song">{{ song }}</span>
-                  {% if artist %}
-                    <span class="artist">by {{ artist }}</span>
+                  <span class="song">{{ item.song }}</span>
+                  {% if item.artist %}
+                    <span class="artist">by {{ item.artist }}</span>
                   {% endif %}
                 </div>
                 <form action="{{ remove_base }}{% if pin %}?pin={{ pin }}{% endif %}" method="post" class="inline-form">
-                  <input type="hidden" name="index" value="{{ index }}">
+                  <input type="hidden" name="index" value="{{ item.index }}">
                   <button type="submit" class="secondary-button small-button">Remove</button>
                 </form>
               </li>
@@ -93,14 +91,13 @@
 
       <section class="panel">
         <h2>Playback device</h2>
-        {% if spotify_ready and devices %}
+        {% if spotify_ready and device_count > 0 %}
           <form action="{{ device_action }}" method="post">
             <label for="device_id">Send playback to</label>
             <select id="device_id" name="device_id">
               <option value="">Spotify default</option>
               {% for device in devices %}
-                {% set active_label = ' (active)' if device.is_active else '' %}
-                <option value="{{ device.id }}" {% if device.id == selected_device_id %}selected{% endif %}>{{ device.name }}{% if device.type %} · {{ device.type }}{% endif %}{{ active_label }}</option>
+                <option value="{{ device.id }}" {% if device.id == selected_device_id %}selected{% endif %}>{{ device.label }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="secondary-button">Save Device</button>

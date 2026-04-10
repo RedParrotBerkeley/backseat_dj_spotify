@@ -31,16 +31,16 @@
     <section class="panel queue-section">
       <div class="queue-header">
         <h2>Current Queue</h2>
-        <span class="queue-count">{{ queue|length }} song{% if queue|length != 1 %}s{% endif %}</span>
+        <span class="queue-count">{{ queue_count }} song{% if queue_count != 1 %}s{% endif %}</span>
       </div>
 
-      {% if queue %}
+      {% if queue_count > 0 %}
         <ol class="queue-list">
-          {% for song, artist in queue %}
+          {% for item in queue %}
             <li>
-              <span class="song">{{ song }}</span>
-              {% if artist %}
-                <span class="artist">by {{ artist }}</span>
+              <span class="song">{{ item.song }}</span>
+              {% if item.artist %}
+                <span class="artist">by {{ item.artist }}</span>
               {% endif %}
             </li>
           {% endfor %}
