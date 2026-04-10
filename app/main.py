@@ -82,33 +82,23 @@ def current_devices():
     return playback_provider.devices()
 
 
-def normalize_device(device: PlaybackDevice) -> dict:
-    return {
-        "id": device.id,
-        "name": device.name,
-        "is_active": device.is_active,
-        "type": device.type,
-    }
-
-
 def normalized_devices():
-    return [normalize_device(device) for device in current_devices()]
+    return current_devices()
 
 
 def selected_device_name(devices) -> Optional[str]:
     if not selected_device_id:
         return None
     for device in devices:
-        device_id = str(device.get("id", "") or "")
-        if device_id == selected_device_id:
-            return str(device.get("name", "Selected device"))
+        if device.id == selected_device_id:
+            return device.name or "Selected device"
     return None
 
 
 def active_device_name(devices) -> Optional[str]:
     for device in devices:
-        if device.get("is_active"):
-            return str(device.get("name", "Active device"))
+        if device.is_active:
+            return device.name or "Active device"
     return None
 
 
@@ -271,7 +261,7 @@ async def set_device(device_id: str = Form(""), pin: Optional[str] = Query(defau
 
     cleaned_device_id = device_id.strip()
     devices = normalized_devices()
-    valid_ids = {str(device.get('id', '') or '') for device in devices}
+    valid_ids = {device.id for device in devices}
 
     if cleaned_device_id and cleaned_device_id not in valid_ids:
         message = "That Spotify device is no longer available."

@@ -99,11 +99,8 @@
             <select id="device_id" name="device_id">
               <option value="">Spotify default</option>
               {% for device in devices %}
-                {% set device_id = device.get('id', '') %}
-                {% set device_name = device.get('name', 'Unknown device') %}
-                {% set device_type = device.get('type', '') %}
-                {% set active_label = ' (active)' if device.get('is_active') else '' %}
-                <option value="{{ device_id }}" {% if device_id == selected_device_id %}selected{% endif %}>{{ device_name }}{% if device_type %} · {{ device_type }}{% endif %}{{ active_label }}</option>
+                {% set active_label = ' (active)' if device.is_active else '' %}
+                <option value="{{ device.id }}" {% if device.id == selected_device_id %}selected{% endif %}>{{ device.name }}{% if device.type %} · {{ device.type }}{% endif %}{{ active_label }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="secondary-button">Save Device</button>
