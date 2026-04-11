@@ -68,7 +68,7 @@ def admin_query(pin: Optional[str]) -> str:
     return f"?{urlencode({'pin': pin})}"
 
 
-def hydrate_preview_metadata(item: SongQueueEntry) -> SongQueueEntry:
+def resolve_preview_metadata(item: SongQueueEntry) -> SongQueueEntry:
     if item.match_status == "matched" or playback_provider is None:
         return item
 
@@ -77,24 +77,33 @@ def hydrate_preview_metadata(item: SongQueueEntry) -> SongQueueEntry:
     if not preview:
         return item
 
-    item.matched_title = preview.get("matched_title")
-    item.matched_artist = preview.get("matched_artist")
-    item.spotify_uri = preview.get("spotify_uri")
-    item.album_art_url = preview.get("album_art_url")
-    item.match_status = str(preview.get("match_status") or "matched")
-    return item
+    return item.model_copy(
+        update={
+            "matched_title": preview.get("matched_title"),
+            "matched_artist": preview.get("matched_artist"),
+            "spotify_uri": preview.get("spotify_uri"),
+            "album_art_url": preview.get("album_art_url"),
+            "match_status": str(preview.get("match_status") or "matched"),
+        }
+    )
+
+
+def resolve_and_persist_queue_preview(index: int, item: SongQueueEntry) -> SongQueueEntry:
+    resolved = resolve_preview_metadata(item)
+    if resolved != item:
+        request_queue.update(index, resolved)
+    return resolved
 
 
 def serialize_queue_item(item: SongQueueEntry, index: Optional[int] = None) -> dict:
-    hydrated = hydrate_preview_metadata(item)
     payload = {
-        "song": hydrated.song,
-        "artist": hydrated.artist,
-        "matched_title": hydrated.matched_title,
-        "matched_artist": hydrated.matched_artist,
-        "spotify_uri": hydrated.spotify_uri,
-        "album_art_url": hydrated.album_art_url,
-        "match_status": hydrated.match_status,
+        "song": item.song,
+        "artist": item.artist,
+        "matched_title": item.matched_title,
+        "matched_artist": item.matched_artist,
+        "spotify_uri": item.spotify_uri,
+        "album_art_url": item.album_art_url,
+        "match_status": item.match_status,
     }
     if index is not None:
         payload["index"] = index
@@ -235,10 +244,9 @@ async def add_song(request: Request, song: str = Form(...), artist: str = Form("
     if not added:
         return render_home(request, error_message)
 
-    latest_item = request_queue.list()[-1] if request_queue.list() else None
-    if latest_item is not None:
-        hydrate_preview_metadata(latest_item)
-        request_queue._save()
+    items = request_queue.list()
+    if items:
+        resolve_and_persist_queue_preview(len(items) - 1, items[-1])
 
     return render_home(request, f'Added "{song.strip()}" to the queue.')
 

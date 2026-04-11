@@ -92,6 +92,16 @@ class SongRequestQueue:
         self._items.append(item)
         self._save()
 
+    def update(self, index: int, item: SongQueueEntry) -> bool:
+        if index < 0 or index >= len(self._items):
+            return False
+
+        items = list(self._items)
+        items[index] = item
+        self._items = deque(items)
+        self._save()
+        return True
+
     def next(self) -> Optional[SongQueueEntry]:
         if not self._items:
             return None
