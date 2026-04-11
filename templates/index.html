@@ -8,49 +8,114 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎵 Backseat DJ</h1>
-    <p class="subtitle">Passengers can queue songs here. Driver controls live on a separate admin page.</p>
+    <header class="hero panel dashboard-hero passenger-dashboard">
+      <div class="hero-topline">
+        <div class="hero-badge">Passenger mode</div>
+        <div class="signal-cluster" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="dashboard-copy">
+          <h1>🎵 Backseat DJ</h1>
+          <p class="subtitle">Queue the next song without touching the driver controls.</p>
+        </div>
+        <div class="dashboard-dial" aria-hidden="true">
+          <div class="dial-ring"></div>
+          <div class="dial-core">
+            <span class="dial-label">queue</span>
+            <strong>{{ queue_count }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="hero-stats dashboard-strip">
+        <div class="stat-pill accent-pill spotify-pill">
+          <span class="stat-label">Now taking requests</span>
+          <span class="stat-value">Passenger queue live</span>
+        </div>
+        <div class="stat-pill muted-pill compact-stat">
+          <span class="stat-label">Up next</span>
+          <span class="stat-value">{{ queue_count }} waiting</span>
+        </div>
+      </div>
+    </header>
 
     {% if message %}
-      <div class="message">{{ message }}</div>
+      <div class="message" role="status" aria-live="polite">{{ message }}</div>
     {% endif %}
 
-    <section class="panel">
-      <h2>Add a song</h2>
-      <form action="/request" method="post">
-        <label for="song">Song Title</label>
-        <input type="text" id="song" name="song" placeholder="Dreams" required>
+    {% if spotify_oauth_ready and not spotify_ready %}
+      <div class="warning">Spotify OAuth credentials are staged, but official playback wiring is still pending.</div>
+    {% endif %}
+
+    <section class="panel form-panel">
+      <div class="section-heading">
+        <h2>Add a song</h2>
+        <p>Drop in a title, add the artist if you know it, and it lands in the queue.</p>
+      </div>
+      <form action="/request" method="post" class="js-submit-form">
+        <label for="song">Song title</label>
+        <input type="text" id="song" name="song" placeholder="Dreams" autocomplete="off" autofocus required>
 
         <label for="artist">Artist</label>
-        <input type="text" id="artist" name="artist" placeholder="Fleetwood Mac">
+        <input type="text" id="artist" name="artist" placeholder="Fleetwood Mac" autocomplete="off">
 
-        <button type="submit">Submit Request</button>
+        <button type="submit" data-default-label="Add to queue" data-loading-label="Adding...">Add to queue</button>
+        <p class="form-helper">Tip: title alone works, but artist helps nail the right track faster.</p>
       </form>
     </section>
 
     <section class="panel queue-section">
       <div class="queue-header">
-        <h2>Current Queue</h2>
+        <div class="section-heading compact-heading">
+          <h2>Current queue</h2>
+          <p>Requests show up here in play order.</p>
+        </div>
         <span class="queue-count">{{ queue_count }} song{% if queue_count != 1 %}s{% endif %}</span>
       </div>
 
       {% if queue_count > 0 %}
-        <ol class="queue-list">
+        <ol class="queue-list public-queue-list">
           {% for item in queue %}
-            <li>
-              <span class="song">{{ item.song }}</span>
-              {% if item.artist %}
-                <span class="artist">by {{ item.artist }}</span>
-              {% endif %}
+            <li class="queue-card track-row">
+              <span class="queue-position">{{ loop.index }}</span>
+              <div class="queue-item-copy">
+                <span class="song">{{ item.song }}</span>
+                {% if item.artist %}
+                  <span class="artist">{{ item.artist }}</span>
+                {% else %}
+                  <span class="artist subtle">Artist not specified</span>
+                {% endif %}
+                {% if item.match_status == 'matched' and item.matched_title %}
+                  <span class="match-badge">Spotify match ready</span>
+                  <span class="track-meta">Match: {{ item.matched_title }}{% if item.matched_artist %} · {{ item.matched_artist }}{% endif %}</span>
+                {% else %}
+                  <span class="track-meta">Queued by passenger</span>
+                {% endif %}
+              </div>
             </li>
           {% endfor %}
         </ol>
       {% else %}
-        <p class="empty-state">No requests yet. Be the first to add one.</p>
+        <div class="empty-state-card">
+          <p class="empty-state">No requests yet.</p>
+          <p class="empty-helper">Be the first one to claim the aux cord in spirit.</p>
+        </div>
       {% endif %}
     </section>
 
-    <p class="footer-note">Driver/admin page: <a href="/admin">/admin</a></p>
+    <p class="footer-note">Driver controls live at <a href="/admin">/admin</a></p>
   </div>
+  <script>
+    document.querySelectorAll('.js-submit-form').forEach((form) => {
+      form.addEventListener('submit', () => {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button) return;
+        button.disabled = true;
+        button.textContent = button.dataset.loadingLabel || 'Working...';
+        form.classList.add('is-submitting');
+      });
+    });
+  </script>
 </body>
 </html>

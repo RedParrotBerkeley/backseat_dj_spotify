@@ -9,9 +9,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.playback import PlaybackDevice, PlaybackProvider
+from app.models import SongQueueEntry
+from app.provider_registry import select_playback_provider
 from app.queue import request_queue
-from app.spotapi_provider import SpotAPIPlaybackProvider
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -24,7 +24,9 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-playback_provider: Optional[PlaybackProvider] = SpotAPIPlaybackProvider.from_env()
+provider_selection = select_playback_provider()
+playback_provider = provider_selection.provider
+provider_status = provider_selection.status
 ADMIN_PIN = os.getenv("BACKSEAT_DJ_ADMIN_PIN")
 last_playback_status = "Spotify playback has not been used yet."
 last_selected_query = ""
@@ -66,18 +68,45 @@ def admin_query(pin: Optional[str]) -> str:
     return f"?{urlencode({'pin': pin})}"
 
 
+def hydrate_preview_metadata(item: SongQueueEntry) -> SongQueueEntry:
+    if item.match_status == "matched" or playback_provider is None:
+        return item
+
+    query = f"{item.song} {item.artist}" if item.artist else item.song
+    preview = playback_provider.preview_track(query)
+    if not preview:
+        return item
+
+    item.matched_title = preview.get("matched_title")
+    item.matched_artist = preview.get("matched_artist")
+    item.spotify_uri = preview.get("spotify_uri")
+    item.album_art_url = preview.get("album_art_url")
+    item.match_status = str(preview.get("match_status") or "matched")
+    return item
+
+
+def serialize_queue_item(item: SongQueueEntry, index: Optional[int] = None) -> dict:
+    hydrated = hydrate_preview_metadata(item)
+    payload = {
+        "song": hydrated.song,
+        "artist": hydrated.artist,
+        "matched_title": hydrated.matched_title,
+        "matched_artist": hydrated.matched_artist,
+        "spotify_uri": hydrated.spotify_uri,
+        "album_art_url": hydrated.album_art_url,
+        "match_status": hydrated.match_status,
+    }
+    if index is not None:
+        payload["index"] = index
+    return payload
+
+
 def public_queue_items() -> list[dict]:
-    return [
-        {"song": song, "artist": artist}
-        for song, artist in request_queue.list()
-    ]
+    return [serialize_queue_item(item) for item in request_queue.list()]
 
 
 def admin_queue_items() -> list[dict]:
-    return [
-        {"index": index, "song": song, "artist": artist}
-        for index, (song, artist) in enumerate(request_queue.list())
-    ]
+    return [serialize_queue_item(item, index=index) for index, item in enumerate(request_queue.list())]
 
 
 def render_home(request: Request, message: Optional[str] = None) -> HTMLResponse:
@@ -88,7 +117,8 @@ def render_home(request: Request, message: Optional[str] = None) -> HTMLResponse
             "request": request,
             "queue": queue,
             "queue_count": len(queue),
-            "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
+            "spotify_ready": provider_status.spotify_ready,
+            "spotify_oauth_ready": provider_status.oauth_configured,
             "message": message,
         },
     )
@@ -144,7 +174,9 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "request": request,
             "queue": queue,
             "queue_count": len(queue),
-            "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
+            "spotify_ready": provider_status.spotify_ready,
+            "spotify_oauth_ready": provider_status.oauth_configured,
+            "provider_blocked_reason": provider_status.blocked_reason,
             "message": message,
             "admin_configured": bool(ADMIN_PIN),
             "authorized": authorized,
@@ -161,7 +193,8 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "active_device_name": current_active_device,
             "last_playback_status": last_playback_status,
             "last_selected_query": last_selected_query,
-            "playback_provider_name": playback_provider.provider_name() if playback_provider else None,
+            "playback_provider_name": provider_status.active_provider,
+            "using_official_oauth": provider_status.using_official_oauth,
         },
         status_code=200 if authorized else 403,
     )
@@ -182,11 +215,30 @@ async def admin(request: Request, pin: Optional[str] = Query(default=None)):
     return render_admin(request, pin)
 
 
+@app.get("/spotify/login")
+async def spotify_login() -> RedirectResponse:
+    message = provider_status.blocked_reason or "Spotify login route is staged, but official OAuth wiring is not active yet."
+    destination = "/admin/refresh?message=" + urlencode({"message": message})
+    return RedirectResponse(url=destination, status_code=303)
+
+
+@app.get("/spotify/callback")
+async def spotify_callback() -> RedirectResponse:
+    message = provider_status.blocked_reason or "Spotify callback route is staged, but official OAuth wiring is not active yet."
+    destination = "/admin/refresh?message=" + urlencode({"message": message})
+    return RedirectResponse(url=destination, status_code=303)
+
+
 @app.post("/request", response_class=HTMLResponse)
 async def add_song(request: Request, song: str = Form(...), artist: str = Form("")):
     added, error_message = request_queue.add(song, artist)
     if not added:
         return render_home(request, error_message)
+
+    latest_item = request_queue.list()[-1] if request_queue.list() else None
+    if latest_item is not None:
+        hydrate_preview_metadata(latest_item)
+        request_queue._save()
 
     return render_home(request, f'Added "{song.strip()}" to the queue.')
 
@@ -207,26 +259,25 @@ async def play_next(pin: Optional[str] = Query(default=None)):
         message = "Queue is empty."
         last_playback_status = message
     else:
-        song, artist = next_song
-        full_query = f"{song} {artist}" if artist else song
+        full_query = f"{next_song.song} {next_song.artist}" if next_song.artist else next_song.song
 
         if playback_provider is None:
-            request_queue.add(song, artist)
-            message = "Spotify credentials are not configured yet."
+            request_queue.requeue(next_song)
+            message = provider_status.blocked_reason or "Spotify credentials are not configured yet."
             last_playback_status = message
             last_selected_query = full_query
         else:
             last_selected_query = full_query
             playback_result = playback_provider.search_and_play(full_query, device_id=selected_device_id or None)
             if not playback_result.ok:
-                request_queue.add(song, artist)
+                request_queue.requeue(next_song)
                 if playback_result.error:
                     message = f'Could not play "{full_query}". {playback_result.error}. The request was returned to the queue.'
                 else:
                     message = f'Could not play "{full_query}". The request was returned to the queue.'
                 last_playback_status = message
             else:
-                provider_label = playback_provider.provider_name() if playback_provider else "spotify"
+                provider_label = provider_status.active_provider or "spotify"
                 device_label = selected_device_name(normalized_devices()) or active_device_name(normalized_devices()) or f"default {provider_label} device"
                 message = f'Now playing "{full_query}" on {device_label}.'
                 last_playback_status = message
@@ -250,8 +301,7 @@ async def skip_next(pin: Optional[str] = Query(default=None)):
     if removed is None:
         message = "Queue is empty, nothing to skip."
     else:
-        song, artist = removed
-        full_query = f"{song} {artist}" if artist else song
+        full_query = f"{removed.song} {removed.artist}" if removed.artist else removed.song
         message = f'Skipped "{full_query}".'
 
     destination = f"/admin/refresh{admin_query(pin)}"
@@ -272,8 +322,7 @@ async def remove_song(index: int = Form(...), pin: Optional[str] = Query(default
     if removed is None:
         message = "Could not remove that queue item."
     else:
-        song, artist = removed
-        full_query = f"{song} {artist}" if artist else song
+        full_query = f"{removed.song} {removed.artist}" if removed.artist else removed.song
         message = f'Removed "{full_query}" from the queue.'
 
     destination = f"/admin/refresh{admin_query(pin)}"
@@ -349,8 +398,10 @@ async def health() -> dict:
     return {
         "ok": True,
         "queue_length": len(request_queue),
-        "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
-        "playback_provider": playback_provider.provider_name() if playback_provider else None,
+        "spotify_ready": provider_status.spotify_ready,
+        "spotify_oauth_ready": provider_status.oauth_configured,
+        "playback_provider": provider_status.active_provider,
+        "provider_blocked_reason": provider_status.blocked_reason,
         "admin_pin_configured": bool(ADMIN_PIN),
         "selected_device_id": selected_device_id or None,
         "last_playback_status": last_playback_status,

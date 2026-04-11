@@ -8,109 +8,195 @@
 </head>
 <body>
   <div class="container">
-    <h1>🚘 Backseat DJ Admin</h1>
-    <p class="subtitle">Playback controls stay off the public passenger page.</p>
+    <header class="hero panel admin-hero dashboard-hero">
+      <div class="hero-topline">
+        <div class="hero-badge admin-badge">Driver mode</div>
+        <div class="signal-cluster" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="dashboard-copy">
+          <h1>🚘 Backseat DJ Admin</h1>
+          <p class="subtitle">Playback controls stay off the public passenger page.</p>
+        </div>
+        <div class="dashboard-dial admin-dial" aria-hidden="true">
+          <div class="dial-ring"></div>
+          <div class="dial-core">
+            <span class="dial-label">queued</span>
+            <strong>{{ queue_count }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="hero-stats dashboard-strip">
+        <div class="stat-pill accent-pill admin-accent-pill spotify-pill">
+          <span class="stat-label">Spotify</span>
+          <span class="stat-value">{% if spotify_ready %}Ready to play{% elif spotify_oauth_ready %}OAuth staged{% else %}Needs setup{% endif %}</span>
+        </div>
+        <div class="stat-pill muted-pill compact-stat">
+          <span class="stat-label">Control state</span>
+          <span class="stat-value">{% if admin_configured and not authorized %}Locked{% else %}Unlocked{% endif %}</span>
+        </div>
+      </div>
+    </header>
 
     {% if message %}
-      <div class="message">{{ message }}</div>
+      <div class="message" role="status" aria-live="polite">{{ message }}</div>
     {% endif %}
 
     {% if not spotify_ready %}
       <div class="warning">Spotify credentials are missing. Queueing still works, but playback is disabled until configured.</div>
     {% endif %}
 
+    {% if provider_blocked_reason and spotify_oauth_ready and not spotify_ready %}
+      <div class="message" role="status" aria-live="polite">{{ provider_blocked_reason }}</div>
+    {% endif %}
+
     {% if admin_configured and not authorized %}
-      <section class="panel">
-        <h2>Unlock admin controls</h2>
-        <form action="/admin" method="get">
+      <section class="panel form-panel narrow-panel">
+        <div class="section-heading">
+          <h2>Unlock admin controls</h2>
+          <p>Enter the driver PIN to manage playback and the queue.</p>
+        </div>
+        <form action="/admin" method="get" class="js-submit-form">
+          <p class="form-helper top-helper">This keeps driver controls off the public page.</p>
           <label for="pin">Admin PIN</label>
-          <input type="password" id="pin" name="pin" placeholder="Enter PIN" required>
-          <button type="submit">Unlock</button>
+          <input type="password" id="pin" name="pin" placeholder="Enter PIN" autofocus required>
+          <button type="submit" data-loading-label="Unlocking...">Unlock</button>
         </form>
       </section>
     {% else %}
       <section class="panel queue-section">
         <div class="queue-header">
-          <h2>Current Queue</h2>
+          <div class="section-heading compact-heading">
+            <h2>Current queue</h2>
+            <p>Remove anything that should not play, or leave it alone and hit next.</p>
+          </div>
           <span class="queue-count">{{ queue_count }} song{% if queue_count != 1 %}s{% endif %}</span>
         </div>
 
         {% if queue_count > 0 %}
           <ol class="queue-list admin-queue-list">
             {% for item in queue %}
-              <li class="admin-queue-item">
+              <li class="queue-card admin-queue-item track-row">
+                <span class="queue-position">{{ loop.index }}</span>
                 <div class="queue-item-copy">
                   <span class="song">{{ item.song }}</span>
                   {% if item.artist %}
-                    <span class="artist">by {{ item.artist }}</span>
+                    <span class="artist">{{ item.artist }}</span>
+                  {% else %}
+                    <span class="artist subtle">Artist not specified</span>
+                  {% endif %}
+                  {% if item.match_status == 'matched' and item.matched_title %}
+                    <span class="match-badge">Spotify match ready</span>
+                    <span class="track-meta">Match: {{ item.matched_title }}{% if item.matched_artist %} · {{ item.matched_artist }}{% endif %}</span>
+                  {% else %}
+                    <span class="track-meta">Request {{ loop.index }} in line</span>
                   {% endif %}
                 </div>
-                <form action="{{ remove_base }}{% if pin %}?pin={{ pin }}{% endif %}" method="post" class="inline-form">
+                <form action="{{ remove_base }}{% if pin %}?pin={{ pin }}{% endif %}" method="post" class="inline-form js-submit-form">
                   <input type="hidden" name="index" value="{{ item.index }}">
-                  <button type="submit" class="secondary-button small-button">Remove</button>
+                  <button type="submit" class="secondary-button small-button" data-loading-label="Removing...">Remove</button>
                 </form>
               </li>
             {% endfor %}
           </ol>
         {% else %}
-          <p class="empty-state">No requests queued right now.</p>
+          <div class="empty-state-card">
+            <p class="empty-state">No requests queued right now.</p>
+            <p class="empty-helper">When passengers add songs, they will show up here in order.</p>
+          </div>
         {% endif %}
       </section>
 
       <section class="panel driver-panel">
-        <h2>Driver actions</h2>
-        <p class="driver-copy">Only use this when it is safe to do so.</p>
-        <div class="action-grid">
-          <form action="{{ admin_action }}" method="post">
-            <button type="submit">Play Next Request</button>
+        <div class="section-heading compact-heading">
+          <h2>Driver actions</h2>
+          <p>Use only when it is safe to do so.</p>
+        </div>
+        <div class="action-grid three-up">
+          <form action="{{ admin_action }}" method="post" class="js-submit-form">
+            <button type="submit" data-loading-label="Playing...">Play next request</button>
+            <p class="action-hint">Send the next queued song to Spotify.</p>
+            {% if provider_blocked_reason and spotify_oauth_ready and not spotify_ready %}
+              <p class="action-hint">{{ provider_blocked_reason }}</p>
+            {% endif %}
           </form>
-          <form action="{{ skip_action }}" method="post">
-            <button type="submit" class="secondary-button">Skip Next</button>
+          <form action="{{ skip_action }}" method="post" class="js-submit-form">
+            <button type="submit" class="secondary-button" data-loading-label="Skipping...">Skip next</button>
+            <p class="action-hint">Drop the next request without playing it.</p>
           </form>
-          <form action="{{ clear_action }}" method="post">
-            <button type="submit" class="secondary-button">Clear Queue</button>
+          <form action="{{ clear_action }}" method="post" class="js-submit-form">
+            <button type="submit" class="danger-button" data-loading-label="Clearing...">Clear queue</button>
+            <p class="action-hint">Wipe the whole queue if it got messy.</p>
           </form>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Playback status</h2>
+      <section class="panel info-panel">
+        <div class="section-heading compact-heading">
+          <h2>Playback status</h2>
+          <p>Quick read on the last action and current target device.</p>
+        </div>
         <p class="status-copy">{{ last_playback_status }}</p>
-        {% if last_selected_query %}
-          <p class="status-meta">Last request attempted: {{ last_selected_query }}</p>
-        {% endif %}
-        {% if selected_device_name %}
-          <p class="status-meta">Selected device: {{ selected_device_name }}</p>
-        {% else %}
-          <p class="status-meta">Selected device: Spotify default</p>
-        {% endif %}
-        {% if active_device_name %}
-          <p class="status-meta">Active Spotify device: {{ active_device_name }}</p>
-        {% endif %}
+        <div class="meta-list">
+          {% if last_selected_query %}
+            <p class="status-meta"><span>Last request attempted</span><strong>{{ last_selected_query }}</strong></p>
+          {% endif %}
+          <p class="status-meta"><span>Provider mode</span><strong>{% if using_official_oauth %}Official Spotify OAuth{% elif playback_provider_name %}{{ playback_provider_name }} fallback{% else %}No active provider{% endif %}</strong></p>
+          {% if selected_device_name %}
+            <p class="status-meta"><span>Selected device</span><strong>{{ selected_device_name }}</strong></p>
+          {% else %}
+            <p class="status-meta"><span>Selected device</span><strong>Spotify default</strong></p>
+          {% endif %}
+          {% if active_device_name %}
+            <p class="status-meta"><span>Active Spotify device</span><strong>{{ active_device_name }}</strong></p>
+          {% endif %}
+        </div>
       </section>
 
-      <section class="panel">
-        <h2>Playback device</h2>
+      <section class="panel form-panel">
+        <div class="section-heading compact-heading">
+          <h2>Playback device</h2>
+          <p>Choose where Spotify should send playback.</p>
+        </div>
         {% if spotify_ready and device_count > 0 %}
-          <form action="{{ device_action }}" method="post">
+          <form action="{{ device_action }}" method="post" class="js-submit-form">
             <label for="device_id">Send playback to</label>
             <select id="device_id" name="device_id">
-              <option value="">Spotify default</option>
-              {% for device in devices %}
-                <option value="{{ device.id }}" {% if device.id == selected_device_id %}selected{% endif %}>{{ device.label }}</option>
-              {% endfor %}
-            </select>
-            <button type="submit" class="secondary-button">Save Device</button>
-          </form>
+               <option value="">Spotify default</option>
+               {% for device in devices %}
+                 <option value="{{ device.id }}" {% if device.id == selected_device_id %}selected{% endif %}>{{ device.label }}</option>
+               {% endfor %}
+             </select>
+             <p class="form-helper">Tip: leave this on default if Spotify Connect is already targeting the right device.</p>
+             <button type="submit" class="secondary-button" data-loading-label="Saving...">Save device</button>
+           </form>
         {% elif spotify_ready %}
-          <p class="empty-state">No Spotify devices are visible right now.</p>
+          <div class="empty-state-card compact-empty-state">
+            <p class="empty-state">No Spotify devices are visible right now.</p>
+            <p class="empty-helper">Open Spotify on the target device, then refresh this page.</p>
+          </div>
         {% else %}
-          <p class="empty-state">Configure Spotify credentials to manage playback devices.</p>
+          <div class="empty-state-card compact-empty-state">
+            <p class="empty-state">Configure Spotify credentials to manage playback devices.</p>
+          </div>
         {% endif %}
       </section>
     {% endif %}
 
-    <p class="footer-link"><a href="/">Back to passenger page</a></p>
+    <p class="footer-note"><a href="/">Back to passenger page</a></p>
   </div>
+  <script>
+    document.querySelectorAll('.js-submit-form').forEach((form) => {
+      form.addEventListener('submit', () => {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button) return;
+        button.disabled = true;
+        button.textContent = button.dataset.loadingLabel || 'Working...';
+        form.classList.add('is-submitting');
+      });
+    });
+  </script>
 </body>
 </html>

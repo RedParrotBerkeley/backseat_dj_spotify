@@ -61,6 +61,35 @@ class SpotAPIPlaybackProvider(PlaybackProvider):
             logger.error("Failed to search for %s: %s", query, exc)
             return None, f"Spotify search failed: {exc}"
 
+    def preview_track(self, query: str) -> Optional[dict]:
+        try:
+            tracks = self.search_tracks(query)
+        except Exception as exc:
+            logger.error("Failed to preview track for %s: %s", query, exc)
+            return None
+
+        if not tracks:
+            return None
+
+        top_track = tracks[0]
+        artists = top_track.get("artists") or []
+        artist_names = [artist.get("name") for artist in artists if isinstance(artist, dict) and artist.get("name")]
+        album = top_track.get("album") or {}
+        images = album.get("images") or []
+        album_art_url = None
+        if isinstance(images, list) and images:
+            first_image = images[0]
+            if isinstance(first_image, dict):
+                album_art_url = first_image.get("url")
+
+        return {
+            "matched_title": top_track.get("name"),
+            "matched_artist": ", ".join(artist_names) if artist_names else None,
+            "spotify_uri": top_track.get("uri"),
+            "album_art_url": album_art_url,
+            "match_status": "matched",
+        }
+
     def play_uri(self, uri: str, device_id: Optional[str] = None) -> PlaybackResult:
         try:
             if device_id:

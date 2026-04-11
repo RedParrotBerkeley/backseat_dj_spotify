@@ -2,9 +2,9 @@ import json
 import logging
 from collections import deque
 from pathlib import Path
-from typing import Deque, List, Optional, Tuple
+from typing import Deque, List, Optional
 
-SongQueueItem = Tuple[str, str]
+from app.models import SongQueueEntry
 
 logger = logging.getLogger(__name__)
 DEFAULT_QUEUE_PATH = Path(__file__).resolve().parent.parent / "data" / "queue.json"
@@ -12,12 +12,12 @@ DEFAULT_QUEUE_PATH = Path(__file__).resolve().parent.parent / "data" / "queue.js
 
 class SongRequestQueue:
     def __init__(self, storage_path: Path = DEFAULT_QUEUE_PATH) -> None:
-        self._items: Deque[SongQueueItem] = deque()
+        self._items: Deque[SongQueueEntry] = deque()
         self.storage_path = storage_path
         self._load()
 
     @staticmethod
-    def _normalize(song: str, artist: str = "") -> Tuple[str, str]:
+    def _normalize(song: str, artist: str = "") -> tuple[str, str]:
         normalized_song = " ".join(song.casefold().split())
         normalized_artist = " ".join(artist.casefold().split())
         return normalized_song, normalized_artist
@@ -41,15 +41,26 @@ class SongRequestQueue:
                 continue
             song = str(item.get("song", "")).strip()
             artist = str(item.get("artist", "")).strip()
-            if song:
-                self._items.append((song, artist))
+            if not song:
+                continue
+
+            entry = SongQueueEntry(
+                song=song,
+                artist=artist,
+                matched_title=item.get("matched_title"),
+                matched_artist=item.get("matched_artist"),
+                spotify_uri=item.get("spotify_uri"),
+                album_art_url=item.get("album_art_url"),
+                match_status=str(item.get("match_status") or "unmatched"),
+            )
+            self._items.append(entry)
 
     def _save(self) -> None:
-        payload = [{"song": song, "artist": artist} for song, artist in self._items]
+        payload = [item.model_dump() for item in self._items]
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self.storage_path.write_text(json.dumps(payload, indent=2))
 
-    def add(self, song: str, artist: str = "") -> Tuple[bool, Optional[str]]:
+    def add(self, song: str, artist: str = "") -> tuple[bool, Optional[str]]:
         cleaned_song = song.strip()
         cleaned_artist = artist.strip()
         if not cleaned_song:
@@ -58,8 +69,8 @@ class SongRequestQueue:
         normalized_new = self._normalize(cleaned_song, cleaned_artist)
         duplicate_count = 0
         same_title_count = 0
-        for queued_song, queued_artist in self._items:
-            normalized_existing = self._normalize(queued_song, queued_artist)
+        for queued_item in self._items:
+            normalized_existing = self._normalize(queued_item.song, queued_item.artist)
             if normalized_existing == normalized_new:
                 return False, f'"{cleaned_song}" is already in the queue.'
             if normalized_existing[0] == normalized_new[0]:
@@ -73,18 +84,22 @@ class SongRequestQueue:
         if cleaned_artist and duplicate_count >= 3:
             return False, f'There are already several requests from {cleaned_artist} in the queue.'
 
-        self._items.append((cleaned_song, cleaned_artist))
+        self._items.append(SongQueueEntry(song=cleaned_song, artist=cleaned_artist))
         self._save()
         return True, None
 
-    def next(self) -> Optional[SongQueueItem]:
+    def requeue(self, item: SongQueueEntry) -> None:
+        self._items.append(item)
+        self._save()
+
+    def next(self) -> Optional[SongQueueEntry]:
         if not self._items:
             return None
         item = self._items.popleft()
         self._save()
         return item
 
-    def remove(self, index: int) -> Optional[SongQueueItem]:
+    def remove(self, index: int) -> Optional[SongQueueEntry]:
         if index < 0 or index >= len(self._items):
             return None
 
@@ -100,7 +115,7 @@ class SongRequestQueue:
         self._save()
         return count
 
-    def list(self) -> List[SongQueueItem]:
+    def list(self) -> List[SongQueueEntry]:
         return list(self._items)
 
     def __len__(self) -> int:
