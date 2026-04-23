@@ -157,3 +157,11 @@ Backseat DJ is an **active MVP / prototype**.
 
 It already demonstrates the workflow clearly.
 The next step is not proving the idea exists, it is tightening the product and choosing the best beta path.
+
+
+## Portfolio snapshot
+
+- **Problem:** In-car music requests are socially noisy and operationally awkward for rideshare drivers.
+- **Core capability:** Passenger request flow with separate driver queue/playback controls.
+- **Primary stack:** Python FastAPI web app with rider/driver views.
+- **Status:** Functional MVP oriented around real rideshare usage.
