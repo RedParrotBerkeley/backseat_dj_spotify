@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from secrets import token_urlsafe
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -11,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.playback import PlaybackDevice, PlaybackProvider
 from app.queue import request_queue
+from app.spotify_oauth_provider import SpotifyOAuthPlaybackProvider
 from app.spotapi_provider import SpotAPIPlaybackProvider
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,7 +26,11 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-playback_provider: Optional[PlaybackProvider] = SpotAPIPlaybackProvider.from_env()
+def create_playback_provider() -> Optional[PlaybackProvider]:
+    return SpotifyOAuthPlaybackProvider.from_env(APP_DATA_DIR) or SpotAPIPlaybackProvider.from_env()
+
+
+playback_provider: Optional[PlaybackProvider] = create_playback_provider()
 ADMIN_PIN = os.getenv("BACKSEAT_DJ_ADMIN_PIN")
 last_playback_status = "Spotify playback has not been used yet."
 last_selected_query = ""
@@ -47,6 +53,13 @@ def save_settings(settings: dict) -> None:
     SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
 
 
+def update_settings(**values) -> dict:
+    settings = load_settings()
+    settings.update(values)
+    save_settings(settings)
+    return settings
+
+
 _runtime_settings = load_settings()
 selected_device_id = str(
     _runtime_settings.get("selected_device_id")
@@ -64,6 +77,42 @@ def admin_query(pin: Optional[str]) -> str:
     if not pin:
         return ""
     return f"?{urlencode({'pin': pin})}"
+
+
+def admin_path(path: str, pin: Optional[str]) -> str:
+    return f"{path}{admin_query(pin)}"
+
+
+def spotify_oauth_provider() -> Optional[SpotifyOAuthPlaybackProvider]:
+    if isinstance(playback_provider, SpotifyOAuthPlaybackProvider):
+        return playback_provider
+    return None
+
+
+def spotify_auth_status() -> str:
+    provider = spotify_oauth_provider()
+    if provider is None:
+        return "not_configured"
+    if provider.is_ready():
+        return "connected"
+    return "configured"
+
+
+def spotify_auth_label() -> str:
+    status = spotify_auth_status()
+    if status == "connected":
+        return "Spotify connected through official OAuth."
+    if status == "configured":
+        return "Spotify app credentials are configured. Connect Spotify to enable playback."
+    return "Spotify OAuth credentials are not configured yet."
+
+
+def spotify_connect_url(pin: Optional[str]) -> str:
+    return admin_path("/auth/spotify/start", pin)
+
+
+def spotify_disconnect_action(pin: Optional[str]) -> str:
+    return admin_path("/auth/spotify/disconnect", pin)
 
 
 def public_queue_items() -> list[dict]:
@@ -104,9 +153,9 @@ def normalized_devices():
     return current_devices()
 
 
-def template_devices() -> list[dict]:
+def template_devices(raw_devices: Optional[list[PlaybackDevice]] = None) -> list[dict]:
     devices = []
-    for device in normalized_devices():
+    for device in raw_devices if raw_devices is not None else normalized_devices():
         label = device.name or "Unknown device"
         if device.type:
             label = f"{label} · {device.type}"
@@ -134,8 +183,8 @@ def active_device_name(devices) -> Optional[str]:
 
 def render_admin(request: Request, pin: Optional[str], message: Optional[str] = None) -> HTMLResponse:
     authorized = is_admin(pin)
-    raw_devices = normalized_devices()
-    queue = admin_queue_items()
+    raw_devices = normalized_devices() if authorized else []
+    queue = admin_queue_items() if authorized else []
     configured_device_name = selected_device_name(raw_devices)
     current_active_device = active_device_name(raw_devices)
     return templates.TemplateResponse(
@@ -154,7 +203,7 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "remove_base": "/admin/remove",
             "skip_action": f"/admin/skip-next{admin_query(pin)}",
             "device_action": f"/admin/device{admin_query(pin)}",
-            "devices": template_devices(),
+            "devices": template_devices(raw_devices),
             "device_count": len(raw_devices),
             "selected_device_id": selected_device_id,
             "selected_device_name": configured_device_name,
@@ -162,6 +211,10 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
             "last_playback_status": last_playback_status,
             "last_selected_query": last_selected_query,
             "playback_provider_name": playback_provider.provider_name() if playback_provider else None,
+            "spotify_auth_status": spotify_auth_status(),
+            "spotify_auth_label": spotify_auth_label(),
+            "spotify_connect_url": spotify_connect_url(pin),
+            "spotify_disconnect_action": spotify_disconnect_action(pin),
         },
         status_code=200 if authorized else 403,
     )
@@ -180,6 +233,66 @@ async def show_queue(request: Request):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, pin: Optional[str] = Query(default=None)):
     return render_admin(request, pin)
+
+
+@app.get("/auth/spotify/start")
+async def spotify_auth_start(pin: Optional[str] = Query(default=None)):
+    if not is_admin(pin):
+        return RedirectResponse(url=admin_path("/admin", pin), status_code=303)
+
+    provider = spotify_oauth_provider()
+    if provider is None:
+        message = "Spotify OAuth credentials are not configured yet."
+        return RedirectResponse(
+            url=f"/admin/refresh{admin_query(pin)}&{urlencode({'message': message})}" if pin else f"/admin/refresh?{urlencode({'message': message})}",
+            status_code=303,
+        )
+
+    state = token_urlsafe(24)
+    update_settings(spotify_oauth_state=state)
+    return RedirectResponse(url=provider.authorization_url(state=state), status_code=303)
+
+
+@app.get("/auth/spotify/callback")
+async def spotify_auth_callback(
+    code: Optional[str] = Query(default=None),
+    state: Optional[str] = Query(default=None),
+    error: Optional[str] = Query(default=None),
+):
+    settings = load_settings()
+    if error:
+        message = f"Spotify authorization failed: {error}."
+    elif not code or not state or state != settings.get("spotify_oauth_state"):
+        message = "Spotify authorization failed because the callback state did not match."
+    else:
+        provider = spotify_oauth_provider()
+        if provider is None:
+            message = "Spotify OAuth credentials are not configured yet."
+        else:
+            try:
+                provider.exchange_code(code)
+                update_settings(spotify_oauth_state="", spotify_oauth_pin="")
+                message = "Spotify connected successfully."
+            except Exception as exc:
+                message = f"Spotify token exchange failed: {exc}."
+
+    destination = "/admin/refresh"
+    return RedirectResponse(url=f"{destination}?{urlencode({'message': message})}", status_code=303)
+
+
+@app.post("/auth/spotify/disconnect")
+async def spotify_disconnect(pin: Optional[str] = Query(default=None)):
+    if not is_admin(pin):
+        return RedirectResponse(url=admin_path("/admin", pin), status_code=303)
+
+    provider = spotify_oauth_provider()
+    if provider is not None:
+        provider.disconnect()
+    update_settings(spotify_oauth_state="", spotify_oauth_pin="")
+    message = "Spotify disconnected."
+    destination = f"/admin/refresh{admin_query(pin)}"
+    joiner = "&" if "?" in destination else "?"
+    return RedirectResponse(url=f"{destination}{joiner}{urlencode({'message': message})}", status_code=303)
 
 
 @app.post("/request", response_class=HTMLResponse)
@@ -300,7 +413,7 @@ async def set_device(device_id: str = Form(""), pin: Optional[str] = Query(defau
         message = "That Spotify device is no longer available."
     else:
         selected_device_id = cleaned_device_id
-        save_settings({"selected_device_id": selected_device_id})
+        update_settings(selected_device_id=selected_device_id)
         if selected_device_id:
             device_name = selected_device_name(devices) or "selected device"
             message = f"Playback device set to {device_name}."
@@ -351,6 +464,7 @@ async def health() -> dict:
         "queue_length": len(request_queue),
         "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
         "playback_provider": playback_provider.provider_name() if playback_provider else None,
+        "spotify_auth_status": spotify_auth_status(),
         "admin_pin_configured": bool(ADMIN_PIN),
         "selected_device_id": selected_device_id or None,
         "last_playback_status": last_playback_status,

@@ -74,6 +74,20 @@
       </section>
 
       <section class="panel">
+        <h2>Spotify connection</h2>
+        <p class="status-copy">{{ spotify_auth_label }}</p>
+        {% if spotify_auth_status == "configured" %}
+          <p><a class="button-link" href="{{ spotify_connect_url }}">Connect Spotify</a></p>
+        {% elif spotify_auth_status == "connected" %}
+          <form action="{{ spotify_disconnect_action }}" method="post">
+            <button type="submit" class="secondary-button">Disconnect Spotify</button>
+          </form>
+        {% else %}
+          <p class="empty-state">Set SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, and SPOTIFY_REDIRECT_URI to enable official Spotify OAuth.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
         <h2>Playback status</h2>
         <p class="status-copy">{{ last_playback_status }}</p>
         {% if last_selected_query %}
