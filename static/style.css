@@ -89,7 +89,19 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+.button-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.85rem 1rem;
+  background-color: #1db954;
+  border-radius: 999px;
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+button:hover,
+.button-link:hover {
   filter: brightness(1.05);
 }
 

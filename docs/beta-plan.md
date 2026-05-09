@@ -39,7 +39,9 @@ Ship a beta that works in the car with the least friction:
 - Small VPS or container host once auth and deployment are more mature
 
 ## Immediate next steps
-1. Introduce provider abstraction so Spotify migration does not destabilize the app
-2. Add deployment config for a hosted beta
-3. Generate a QR code once the first public beta URL exists
-4. Start a SwiftUI app shell for TestFlight
+1. Smoke-test official Spotify OAuth locally from `/admin`
+2. Deploy the FastAPI app to Render or another long-running backend host
+3. Add the hosted OAuth callback URL to the Spotify Developer Dashboard
+4. Complete hosted OAuth from the admin page with a Premium account and active device
+5. Generate a QR code once the first public beta URL exists
+6. Start a SwiftUI app shell for TestFlight

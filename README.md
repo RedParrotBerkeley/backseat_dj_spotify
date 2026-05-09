@@ -41,7 +41,7 @@ The current version is a FastAPI app with:
 - a file-backed request queue
 - optional admin PIN protection
 - playback provider abstraction
-- Spotify-oriented playback support through SpotAPI
+- official Spotify OAuth/Web API playback support
 - queue persistence across restarts
 - device selection and saved playback settings
 
@@ -50,7 +50,8 @@ The current version is a FastAPI app with:
 - `app/main.py` - FastAPI routes and primary app flow
 - `app/queue.py` - file-backed queue persisted to `data/queue.json`
 - `app/playback.py` - playback provider interface
-- `app/spotapi_provider.py` - current SpotAPI-backed playback provider
+- `app/spotify_oauth_provider.py` - official Spotify OAuth/Web API playback provider
+- `app/spotapi_provider.py` - legacy SpotAPI fallback provider
 - `templates/index.html` - passenger request UI
 - `templates/admin.html` - driver/admin controls
 - `static/style.css` - shared styling
@@ -82,7 +83,6 @@ It is creating a cleaner rider-to-driver interaction loop around music, mood, an
 
 ## MVP gaps worth tackling next
 
-- add an official Spotify OAuth playback provider
 - improve anti-spam / rate limiting for public-facing usage
 - strengthen auth if the app moves beyond personal-use beta
 - improve deployment and public-beta ergonomics
@@ -105,15 +105,21 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```env
-SPOTIFY_USERNAME=your_email
-SPOTIFY_PASSWORD=your_password
+SPOTIFY_CLIENT_ID=your_spotify_app_client_id
+SPOTIFY_CLIENT_SECRET=***
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/spotify/callback
 BACKSEAT_DJ_ADMIN_PIN=1234
 BACKSEAT_DJ_DEVICE_ID=spotify_device_id_here
 ```
 
 Notes:
+- `SPOTIFY_REDIRECT_URI` must exactly match a Redirect URI in the Spotify Developer Dashboard
+- local development should use `http://127.0.0.1:8000/auth/spotify/callback`
+- after the app starts, open `/admin` and use **Connect Spotify** to complete OAuth
+- Spotify playback control requires a Spotify Premium account and an active playback device
 - `BACKSEAT_DJ_ADMIN_PIN` is optional, but recommended if anyone else can reach `/admin`
 - once a playback device is selected in the admin UI, the app saves it in `data/settings.json`
+- OAuth tokens are stored in `data/spotify_tokens.json` by default; set `SPOTIFY_TOKEN_PATH` to override
 - `BACKSEAT_DJ_DEVICE_ID` is mainly a startup fallback
 
 ### 3. Launch the app
@@ -147,7 +153,8 @@ That makes it a useful product prototype rather than just a local hack.
 
 ## Important caveats
 
-- the current playback provider is SpotAPI, which is unofficial
+- Spotify playback control requires Spotify Premium and an active device
+- OAuth token storage is file-backed for beta; use managed storage before production/multi-user use
 - the admin PIN is an MVP safeguard, not production-grade auth
 - the current app should be treated as a prototype / beta, not production software
 
@@ -155,8 +162,8 @@ That makes it a useful product prototype rather than just a local hack.
 
 Backseat DJ is an **active MVP / prototype**.
 
-It already demonstrates the workflow clearly.
-The next step is not proving the idea exists, it is tightening the product and choosing the best beta path.
+It already demonstrates the request workflow and now uses official Spotify OAuth/Web API plumbing for playback.
+The next step is a hosted beta smoke test with a Premium account and active device.
 
 
 ## Portfolio snapshot
