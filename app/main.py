@@ -83,9 +83,9 @@ def admin_queue_items() -> list[dict]:
 def render_home(request: Request, message: Optional[str] = None) -> HTMLResponse:
     queue = public_queue_items()
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "queue": queue,
             "queue_count": len(queue),
             "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
@@ -139,9 +139,9 @@ def render_admin(request: Request, pin: Optional[str], message: Optional[str] = 
     configured_device_name = selected_device_name(raw_devices)
     current_active_device = active_device_name(raw_devices)
     return templates.TemplateResponse(
+        request,
         "admin.html",
         {
-            "request": request,
             "queue": queue,
             "queue_count": len(queue),
             "spotify_ready": playback_provider is not None and playback_provider.is_ready(),
